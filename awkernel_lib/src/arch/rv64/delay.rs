@@ -1,4 +1,5 @@
 use crate::delay::Delay;
+use core::sync::atomic::{AtomicU64, Ordering};
 
 // we should get this info from device tree
 const ACLINT_MTIME_BASE: u32 = 0x0200_0000 + 0x0000bff8;
@@ -12,6 +13,8 @@ pub(super) unsafe fn init_non_primary() {
 }
 const RISCV_TIMEBASE_FREQ: u64 = 10_000_000;
 
+static COUNT_START: AtomicU64 = AtomicU64::new(0);
+
 impl Delay for super::RV64 {
     fn wait_interrupt() {
         unsafe { core::arch::asm!("wfi") };
@@ -24,19 +27,19 @@ impl Delay for super::RV64 {
     }
 
     fn uptime() -> u64 {
-        // as microsec
-        unsafe {
-            let mtime = ACLINT_MTIME_BASE as *const u64;
-            *mtime * 1_000_000 / RISCV_TIMEBASE_FREQ
-        }
+        let start = COUNT_START.load(Ordering::Acquire);
+        let mtime = ACLINT_MTIME_BASE as *const u64;
+        let now = unsafe { core::ptr::read_volatile(mtime) };
+        let diff = now - start;
+        diff * 1_000_000 / RISCV_TIMEBASE_FREQ
     }
 
     fn uptime_nano() -> u128 {
-        // as microsec
-        unsafe {
-            let mtime = ACLINT_MTIME_BASE as *const u128;
-            *mtime * 1_000_000_000 / RISCV_TIMEBASE_FREQ as u128
-        }
+        let start = COUNT_START.load(Ordering::Acquire);
+        let mtime = ACLINT_MTIME_BASE as *const u64;
+        let now = unsafe { core::ptr::read_volatile(mtime) };
+        let diff = now - start;
+        diff as u128 * 1_000_000_000 / RISCV_TIMEBASE_FREQ as u128
     }
 
     fn cpu_counter() -> u64 {
@@ -46,4 +49,14 @@ impl Delay for super::RV64 {
         }
         cycle
     }
+}
+
+pub(super) unsafe fn init_primary() {
+    let mtime = ACLINT_MTIME_BASE as *const u64;
+    let count = core::ptr::read_volatile(mtime);
+    COUNT_START.store(count, Ordering::Release);
+}
+
+pub(super) unsafe fn init_non_primary() {
+    // No additional initialization needed for non-primary CPUs
 }
