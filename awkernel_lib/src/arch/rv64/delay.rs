@@ -3,14 +3,6 @@ use core::sync::atomic::{AtomicU64, Ordering};
 
 // we should get this info from device tree
 const ACLINT_MTIME_BASE: u32 = 0x0200_0000 + 0x0000bff8;
-
-pub(super) unsafe fn init_primary() {
-    // MTIME is a free-running hardware counter; no initialization needed
-}
-
-pub(super) unsafe fn init_non_primary() {
-    // No per-hart delay state to initialize
-}
 const RISCV_TIMEBASE_FREQ: u64 = 10_000_000;
 
 static COUNT_START: AtomicU64 = AtomicU64::new(0);
