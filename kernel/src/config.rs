@@ -6,7 +6,7 @@ pub use crate::arch::config::*;
 pub const BACKUP_HEAP_SIZE: usize = 64 * 1024 * 1024;
 
 #[cfg(test)]
-#[allow(dead_code)]
+// #[allow(dead_code)]
 pub const HEAP_START: usize = 0;
 
 /// Initialize the architecture specific configuration.
