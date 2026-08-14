@@ -42,6 +42,8 @@ pub unsafe extern "C" fn kernel_main() {
 }
 
 unsafe fn primary_hart(hartid: usize) {
+    unsafe { awkernel_lib::arch::rv64::init_fpu() };
+
     // setup interrupt; TODO;
 
     super::console::init_port(UART_BASE);
@@ -104,6 +106,8 @@ unsafe fn primary_hart(hartid: usize) {
 }
 
 unsafe fn non_primary_hart(hartid: usize) {
+    unsafe { awkernel_lib::arch::rv64::init_fpu() };
+
     while !PRIMARY_INITIALIZED.load(Ordering::SeqCst) {
         core::hint::spin_loop();
     }
