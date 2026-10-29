@@ -19,12 +19,17 @@ pub mod plic;
 pub(super) mod power;
 pub(super) mod vm;
 
-pub fn init_page_allocator() {
-    frame_allocator::init_page_allocator();
+/// Initialize the frame allocator over `[start, end)`.
+/// The range is used only for page table frames and must not overlap the heap.
+pub fn init_page_allocator(start: usize, end: usize) {
+    frame_allocator::init_page_allocator(start, end);
 }
 
-pub fn init_kernel_space() {
-    vm::init_kernel_space();
+/// Build the kernel page table and identity-map the page-table-frame region
+/// `[pt_start, heap_start)` and the heap `[heap_start, memory_end)`.
+/// Must be called after `init_page_allocator` and the heap are initialized.
+pub fn init_kernel_space(pt_start: usize, heap_start: usize, memory_end: usize) {
+    vm::init_kernel_space(pt_start, heap_start, memory_end);
 }
 
 pub fn activate_kernel_space() {

@@ -1,5 +1,5 @@
 use super::{
-    address::{PhysPageNum, VirtPageNum, MEMORY_END},
+    address::{PhysPageNum, VirtPageNum},
     frame_allocator::{frame_alloc, FrameTracker},
     page_table::{Flags as PTEFlags, PageTable, PageTableEntry},
 };
@@ -17,7 +17,6 @@ extern "C" {
     fn edata();
     fn sbss_with_stack();
     fn ebss();
-    fn ekernel();
 }
 
 pub struct MemorySet {
@@ -250,19 +249,7 @@ impl MemorySet {
             None,
         );
 
-        unsafe {
-            unsafe_puts("Mapping physical memory...\r\n");
-        }
-        memory_set.push(
-            MapArea::new(
-                VirtAddr::from_usize(ekernel as *const () as usize),
-                VirtAddr::from_usize(MEMORY_END as usize),
-                MapType::Identical,
-                MapPermission::R | MapPermission::W,
-            ),
-            None,
-        );
-
+        // The page-table-frame and heap regions are mapped by init_kernel_space().
         memory_set
     }
 
@@ -308,10 +295,48 @@ use crate::sync::mutex::Mutex;
 
 pub static KERNEL_SPACE: Mutex<Option<MemorySet>> = Mutex::new(None);
 
-pub fn init_kernel_space() {
+/// Initialize the kernel page table.
+///
+/// `[pt_start, heap_start)` is the frame allocator's region and
+/// `[heap_start, memory_end)` is the heap. Both are identity-mapped: page table
+/// code dereferences frames via their physical addresses, which must remain
+/// valid once translation is enabled.
+pub fn init_kernel_space(pt_start: usize, heap_start: usize, memory_end: usize) {
     let mut node = MCSNode::new();
     let mut kernel_space = KERNEL_SPACE.lock(&mut node);
-    *kernel_space = Some(MemorySet::new_kernel());
+    let mut memory_set = MemorySet::new_kernel();
+
+    map_identity(&mut memory_set, "page table frames", pt_start, heap_start);
+    map_identity(&mut memory_set, "heap", heap_start, memory_end);
+
+    *kernel_space = Some(memory_set);
+}
+
+/// Identity-map `[start, end)` with read/write permissions. An empty range is ignored.
+fn map_identity(memory_set: &mut MemorySet, name: &str, start: usize, end: usize) {
+    if end <= start {
+        return;
+    }
+
+    unsafe {
+        unsafe_puts("Mapping ");
+        unsafe_puts(name);
+        unsafe_puts(": 0x");
+        crate::console::unsafe_print_hex_u64(start as u64);
+        unsafe_puts(" - 0x");
+        crate::console::unsafe_print_hex_u64(end as u64);
+        unsafe_puts("\r\n");
+    }
+
+    memory_set.push(
+        MapArea::new(
+            VirtAddr::from_usize(start),
+            VirtAddr::from_usize(end),
+            MapType::Identical,
+            MapPermission::R | MapPermission::W,
+        ),
+        None,
+    );
 }
 
 pub fn activate_kernel_space() {
